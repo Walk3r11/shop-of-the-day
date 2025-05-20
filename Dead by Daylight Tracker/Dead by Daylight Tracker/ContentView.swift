@@ -7,6 +7,22 @@
 
 import SwiftUI
 
+struct Perk: Identifiable, Decodable {
+    let id = UUID()
+    let name: String
+    let icon: String
+}
+
+func loadPerks() -> [Perk] {
+    guard let url = Bundle.main.url(forResource: "perks", withExtension: "json"),
+          let data = try? Data(contentsOf: url),
+          let perks = try? JSONDecoder().decode([Perk].self, from: data) else {
+        print("Failed to load perks JSON")
+        return []
+    }
+    return perks
+}
+
 // MARK: - Color Extensions
 
 extension Color {
@@ -306,6 +322,8 @@ struct ShopView: View {
 // MARK: - PerksView
 
 struct PerksView: View {
+    @State private var perks: [Perk] = []
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -313,17 +331,40 @@ struct PerksView: View {
                     Text("Perks")
                         .font(.largeTitle)
                         .foregroundColor(.dbdRed)
+                        .padding(.horizontal)
 
-                    Text("Coming soon: Killer & Survivor perks database.")
-                        .foregroundColor(.white.opacity(0.8))
+                    if perks.isEmpty {
+                        Text("Loading perks...")
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.horizontal)
+                    } else {
+                        ForEach(perks) { perk in
+                            HStack(spacing: 15) {
+                                Image(perk.icon.replacingOccurrences(of: ".png", with: ""))
+                                    .resizable()
+                                    .frame(width: 50, height: 50)
+                                    .cornerRadius(8)
+                                    .shadow(radius: 3)
+                                Text(perk.name)
+                                    .foregroundColor(.white)
+                                    .font(.headline)
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
                 }
-                .padding()
+                .padding(.vertical)
             }
             .foggyBackground()
             .navigationTitle("Perks")
+            .onAppear {
+                perks = loadPerks()  // Load perks here once view appears
+            }
         }
     }
 }
+
 
 // MARK: - LoreView
 
