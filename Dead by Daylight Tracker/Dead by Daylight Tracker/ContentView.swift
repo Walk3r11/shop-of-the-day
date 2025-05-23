@@ -11,16 +11,28 @@ struct Perk: Identifiable, Decodable {
     let id = UUID()
     let name: String
     let icon: String
+    
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case icon
+    }
 }
 
 func loadPerks() -> [Perk] {
-    guard let url = Bundle.main.url(forResource: "perks", withExtension: "json"),
-          let data = try? Data(contentsOf: url),
-          let perks = try? JSONDecoder().decode([Perk].self, from: data) else {
-        print("Failed to load perks JSON")
+    guard let url = Bundle.main.url(forResource: "perks", withExtension: "json") else {
+        print("🚫 JSON file NOT FOUND in bundle")
         return []
     }
-    return perks
+    
+    do {
+        let data = try Data(contentsOf: url)
+        let perks = try JSONDecoder().decode([Perk].self, from: data)
+        print("✅ Loaded \(perks.count) perks")
+        return perks
+    } catch {
+        print("❌ JSON Decode Error: \(error)")
+        return []
+    }
 }
 
 // MARK: - Color Extensions
@@ -28,31 +40,6 @@ func loadPerks() -> [Perk] {
 extension Color {
     static let dbdRed = Color(red: 0.6, green: 0, blue: 0)
     static let dbdBlack = Color(red: 0.05, green: 0.05, blue: 0.05)
-}
-
-// MARK: - Fog Background Modifier
-
-struct FogBackground: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background(
-                ZStack {
-                    Color.dbdBlack
-                    Image("fog") // Add fog texture to Assets
-                        .resizable()
-                        .scaledToFill()
-                        .opacity(0.15)
-                        .blendMode(.screen)
-                }
-                .ignoresSafeArea()
-            )
-    }
-}
-
-extension View {
-    func foggyBackground() -> some View {
-        self.modifier(FogBackground())
-    }
 }
 
 // MARK: - StoreItem Model
@@ -80,7 +67,7 @@ let specialItems = [
 struct CurrencyBalanceView: View {
     let iconName: String
     let amount: String
-
+    
     var body: some View {
         HStack(spacing: 8) {
             Image(iconName)
@@ -100,7 +87,7 @@ struct CurrencyBalanceView: View {
 
 struct FeaturedItemView: View {
     let item: StoreItem
-
+    
     var body: some View {
         VStack(spacing: 10) {
             Image(item.imageName)
@@ -124,7 +111,7 @@ struct FeaturedItemView: View {
 
 struct SpecialItemView: View {
     let item: StoreItem
-
+    
     var body: some View {
         HStack(spacing: 15) {
             Image(item.imageName)
@@ -159,12 +146,12 @@ struct ContentView: View {
                 .tabItem {
                     Label("Shop", systemImage: "cart.fill")
                 }
-
+            
             PerksView()
                 .tabItem {
                     Label("Perks", systemImage: "star.fill")
                 }
-
+            
             LoreView()
                 .tabItem {
                     Label("Lore", systemImage: "book.fill")
@@ -181,23 +168,23 @@ struct Skin: Identifiable {
 }
 
 let skins: [Skin] = [
-    Skin(name: "Taurie Cain", imageName: "taurie_skin"),
-    Skin(name: "Maiden Guard", imageName: "plague_maiden_guard"),
-    Skin(name: "Blood Queen", imageName: "blight_human_form"),
-    Skin(name: "Ancient Wrath", imageName: "nurse_sally_render")
+    // Taurie skin removed to prevent crash
+    // Skin(name: "Taurie Cain", imageName: "taurie_skin"),
+    // Skin(name: "Maiden Guard", imageName: "plague_maiden_guard"),
+    // Skin(name: "Blood Queen", imageName: "blight_human_form"),
+    // Skin(name: "Ancient Wrath", imageName: "nurse_sally_render")
 ]
 
 struct ShopView: View {
     @State private var selectedTab = "FEATURED"
     let tabs = ["FEATURED", "COLLECTIONS", "BUNDLES", "KILLERS", "SURVIVORS"]
-
+    
     var body: some View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
-
+                
                 VStack(spacing: 0) {
-                    // Top Tabs
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 20) {
                             ForEach(tabs, id: \.self) { tab in
@@ -215,7 +202,7 @@ struct ShopView: View {
                         }
                         .padding(.horizontal)
                     }
-
+                    
                     ScrollView {
                         VStack(spacing: 30) {
                             // Skin carousel
@@ -229,7 +216,7 @@ struct ShopView: View {
                                             .clipped()
                                             .cornerRadius(15)
                                             .shadow(radius: 6)
-
+                                        
                                         Text(skin.name)
                                             .font(.title3)
                                             .fontWeight(.semibold)
@@ -243,13 +230,13 @@ struct ShopView: View {
                             }
                             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                             .frame(height: 300)
-
+                            
                             // Featured Characters
                             VStack(alignment: .leading) {
                                 Text("FEATURED CHARACTERS")
                                     .foregroundColor(.gray)
                                     .padding(.horizontal)
-
+                                
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 15) {
                                         ForEach(0..<3) { i in
@@ -262,13 +249,13 @@ struct ShopView: View {
                                     .padding(.horizontal)
                                 }
                             }
-
+                            
                             // Featured Content
                             VStack(alignment: .leading) {
                                 Text("FEATURED CONTENT")
                                     .foregroundColor(.gray)
                                     .padding(.horizontal)
-
+                                
                                 RoundedRectangle(cornerRadius: 10)
                                     .fill(Color.gray.opacity(0.2))
                                     .frame(height: 80)
@@ -280,24 +267,23 @@ struct ShopView: View {
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                     )
                             }
-
+                            
                             // Free Gift
                             VStack(alignment: .leading) {
                                 Text("FREE GIFT")
                                     .foregroundColor(.gray)
                                     .padding(.horizontal)
-
+                                
                                 RoundedRectangle(cornerRadius: 10)
                                     .fill(Color.red.opacity(0.5))
                                     .frame(width: 120, height: 140)
                                     .padding(.horizontal)
                             }
-
+                            
                             Spacer().frame(height: 30)
                         }
                     }
-
-                    // Bottom Buttons
+                    
                     HStack(spacing: 30) {
                         Button("GET AURIC CELLS") {}
                     }
@@ -323,71 +309,94 @@ struct ShopView: View {
 
 struct PerksView: View {
     @State private var perks: [Perk] = []
-
+    
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("Perks")
-                        .font(.largeTitle)
-                        .foregroundColor(.dbdRed)
-                        .padding(.horizontal)
-
-                    if perks.isEmpty {
-                        Text("Loading perks...")
-                            .foregroundColor(.white.opacity(0.8))
+            ZStack {
+                Color.dbdBlack.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("Perks")
+                            .font(.largeTitle)
+                            .foregroundColor(.dbdRed)
                             .padding(.horizontal)
-                    } else {
-                        ForEach(perks) { perk in
-                            HStack(spacing: 15) {
-                                Image(perk.icon.replacingOccurrences(of: ".png", with: ""))
-                                    .resizable()
-                                    .frame(width: 50, height: 50)
-                                    .cornerRadius(8)
-                                    .shadow(radius: 3)
-                                Text(perk.name)
-                                    .foregroundColor(.white)
-                                    .font(.headline)
-                                Spacer()
+                        
+                        if perks.isEmpty {
+                            Text("Loading perks...")
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal)
+                        } else {
+                            ForEach(perks) { perk in
+                                HStack(spacing: 15) {
+                                    Image(perk.icon.replacingOccurrences(of: ".png", with: ""))
+                                        .resizable()
+                                        .frame(width: 50, height: 50)
+                                        .cornerRadius(8)
+                                        .shadow(radius: 3)
+                                    Text(perk.name)
+                                        .foregroundColor(.white)
+                                        .font(.headline)
+                                    Spacer()
+                                }
+                                .padding(.horizontal)
                             }
-                            .padding(.horizontal)
                         }
                     }
+                    .padding(.vertical)
                 }
-                .padding(.vertical)
             }
-            .foggyBackground()
             .navigationTitle("Perks")
             .onAppear {
-                perks = loadPerks()  // Load perks here once view appears
+                perks = loadPerks()
             }
+            .navigationBarTitle("Perks", displayMode: .inline)
+            .toolbarBackground(Color.dbdBlack, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
+        .navigationViewStyle(.stack)
+        .preferredColorScheme(.dark)
     }
 }
-
 
 // MARK: - LoreView
 
 struct LoreView: View {
+    @State private var loreText: String = ""
+    
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text("Lore")
-                        .font(.largeTitle)
-                        .foregroundColor(.dbdRed)
-
-                    Text("Coming soon: Realm, Entity, and character backstories.")
-                        .foregroundColor(.white.opacity(0.8))
+            ZStack {
+                Color.dbdBlack.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text("Lore")
+                            .font(.largeTitle)
+                            .foregroundColor(.dbdRed)
+                            .padding(.horizontal)
+                        
+                        if loreText.isEmpty {
+                            Text("Loading lore...")
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal)
+                        } else {
+                            Text(loreText)
+                                .foregroundColor(.white)
+                                .font(.body)
+                                .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
                 }
-                .padding()
             }
-            .foggyBackground()
             .navigationTitle("Lore")
+            .toolbarBackground(Color.dbdBlack, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
         }
     }
 }
-
 // MARK: - Preview
 
 #Preview {
