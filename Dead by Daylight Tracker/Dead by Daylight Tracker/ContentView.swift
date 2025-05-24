@@ -363,7 +363,14 @@ struct PerksView: View {
 // MARK: - LoreView
 
 struct LoreView: View {
-    @State private var loreText: String = ""
+    @State private var loreText: String = """
+    Everyone in the game is trapped there by an eldritch being known as The Entity. The Entity feeds off suffering—particularly the loss of hope. The trials we play are a kind of ritual designed to extract that emotion from the survivors and offer it up to the Entity. It gives them a false sense of hope by allowing them to escape, then feasts on them as that hope is stripped away and they are sacrificed. Whether the survivor lives or dies, they always end up back at the campfire. But for survivors who are sacrificed, they lose a tiny piece of themselves. Eventually, when they lose their last glimmer of hope, they become empty husks. The Entity casts these husks into the Void—especially relevant right now because of the current Void event.
+    
+    Killers are beings it has picked up—ones that cause suffering and pain. Some do so willingly, others through manipulation. The Entity can torture them into complying, amplify existing feelings of hatred and violence, or trick them into perceiving survivors as their enemies—whatever it takes to make them participate. They’re just as trapped as the survivors, and for a few, just as tormented.
+    
+    That’s the basics of it. If you want to know more, I’d suggest reading up on some of the concepts on the Wiki. The Entity and The Trials are good places to start. They regularly expand the lore through The Archives, which are released every few months with a new Tome. These Tomes include stories about specific characters but also contain entries about events happening outside the trials. There are other beings in the Fog that don’t participate in the trials, and some locations that you never actually see in-game.
+    """
+    
     
     var body: some View {
         NavigationView {
@@ -372,11 +379,6 @@ struct LoreView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        Text("Lore")
-                            .font(.largeTitle)
-                            .foregroundColor(.dbdRed)
-                            .padding(.horizontal)
-                        
                         if loreText.isEmpty {
                             Text("Loading lore...")
                                 .foregroundColor(.white.opacity(0.8))
@@ -394,6 +396,7 @@ struct LoreView: View {
             .navigationTitle("Lore")
             .toolbarBackground(Color.dbdBlack, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
         }
     }
 }
