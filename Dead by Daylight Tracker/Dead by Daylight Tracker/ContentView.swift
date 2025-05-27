@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WebKit
 
 struct Perk: Identifiable, Decodable {
     let id = UUID()
@@ -152,6 +153,11 @@ struct ContentView: View {
                     Label("Perks", systemImage: "star.fill")
                 }
             
+            ItemsView()
+                .tabItem {
+                    Label("Items", systemImage: "bag.fill")
+                }
+            
             LoreView()
                 .tabItem {
                     Label("Lore", systemImage: "book.fill")
@@ -175,9 +181,74 @@ let skins: [Skin] = [
     // Skin(name: "Ancient Wrath", imageName: "nurse_sally_render")
 ]
 
+struct Power: Identifiable, Decodable {
+    let id = UUID()
+    let name: String
+    let icon: String
+    
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case icon
+    }
+}
+
+// MARK: - Loaders
+
+func loadPowers() -> [Power] {
+    guard let url = Bundle.main.url(forResource: "powers", withExtension: "json") else {
+        print("🚫 powers.json NOT FOUND")
+        return []
+    }
+    
+    do {
+        let data = try Data(contentsOf: url)
+        let powers = try JSONDecoder().decode([Power].self, from: data)
+        print("✅ Loaded \(powers.count) powers")
+        return powers
+    } catch {
+        print("❌ Error loading powers: \(error)")
+        return []
+    }
+}
+
+// MARK: - Views
+
+struct PowersGridView: View {
+    let powers: [Power]
+    
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+    
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 20) {
+            ForEach(powers) { power in
+                VStack {
+                    Image(power.icon.replacingOccurrences(of: ".png", with: ""))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 80, height: 80)
+                        .cornerRadius(10)
+                    Text(power.name)
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 100)
+                }
+                .padding()
+                .background(Color.black.opacity(0.7))
+                .cornerRadius(10)
+            }
+        }
+    }
+}
+
 struct ShopView: View {
     @State private var selectedTab = "FEATURED"
-    let tabs = ["FEATURED", "COLLECTIONS", "BUNDLES", "KILLERS", "SURVIVORS"]
+    private let tabs = ["FEATURED", "COLLECTIONS", "BUNDLES", "KILLERS"]
+    
+    @State private var powers: [Power] = []
     
     var body: some View {
         NavigationView {
@@ -185,6 +256,7 @@ struct ShopView: View {
                 Color.black.ignoresSafeArea()
                 
                 VStack(spacing: 0) {
+                    // Top tab selector
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 20) {
                             ForEach(tabs, id: \.self) { tab in
@@ -203,95 +275,34 @@ struct ShopView: View {
                         .padding(.horizontal)
                     }
                     
+                    // Main content
                     ScrollView {
                         VStack(spacing: 30) {
-                            // Skin carousel
-                            TabView {
-                                ForEach(skins) { skin in
-                                    ZStack(alignment: .bottom) {
-                                        Image(skin.imageName)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(height: 300)
-                                            .clipped()
-                                            .cornerRadius(15)
-                                            .shadow(radius: 6)
-                                        
-                                        Text(skin.name)
-                                            .font(.title3)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.white)
-                                            .padding(.bottom, 10)
-                                            .background(Color.black.opacity(0.6))
-                                            .cornerRadius(5)
-                                    }
-                                    .padding(.horizontal)
-                                }
+                            switch selectedTab {
+                                case "FEATURED":
+                                    featuredSection
+                                case "COLLECTIONS":
+                                    collectionsSection
+                                case "BUNDLES":
+                                    bundlesSection
+                                case "KILLERS":
+                                    PowersGridView(powers: powers).padding(.horizontal)
+                                default:
+                                    placeholderSection(title: selectedTab)
                             }
-                            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                            .frame(height: 300)
-                            
-                            // Featured Characters
-                            VStack(alignment: .leading) {
-                                Text("FEATURED CHARACTERS")
-                                    .foregroundColor(.gray)
-                                    .padding(.horizontal)
-                                
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 15) {
-                                        ForEach(0..<3) { i in
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(Color.gray.opacity(0.4))
-                                                .frame(width: 100, height: 120)
-                                                .overlay(Text("Char \(i + 1)").foregroundColor(.white))
-                                        }
-                                    }
-                                    .padding(.horizontal)
-                                }
-                            }
-                            
-                            // Featured Content
-                            VStack(alignment: .leading) {
-                                Text("FEATURED CONTENT")
-                                    .foregroundColor(.gray)
-                                    .padding(.horizontal)
-                                
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(height: 80)
-                                    .padding(.horizontal)
-                                    .overlay(
-                                        Text("Dead by Daylight Official Shop")
-                                            .foregroundColor(.white)
-                                            .padding()
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                    )
-                            }
-                            
-                            // Free Gift
-                            VStack(alignment: .leading) {
-                                Text("FREE GIFT")
-                                    .foregroundColor(.gray)
-                                    .padding(.horizontal)
-                                
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(Color.red.opacity(0.5))
-                                    .frame(width: 120, height: 140)
-                                    .padding(.horizontal)
-                            }
-                            
-                            Spacer().frame(height: 30)
                         }
+                        .padding(.top, 20)
                     }
                     
-                    HStack(spacing: 30) {
+                    // Bottom Bar
+                    HStack {
+                        Spacer()
                         Button("GET AURIC CELLS") {}
+                            .foregroundColor(.white)
+                            .padding()
+                        Spacer()
                     }
-                    .font(.caption)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
                     .background(Color.black.opacity(0.8))
-                    .foregroundColor(.white)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -302,6 +313,145 @@ struct ShopView: View {
                 }
             }
         }
+        .onAppear {
+            powers = loadPowers()
+        }
+    }
+    
+    // MARK: - Sections
+    
+    var featuredSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("🔥 HOT PICKS")
+                .font(.title2)
+                .foregroundColor(.dbdRed)
+                .padding(.horizontal)
+            
+            ForEach(featuredItems, id: \.name) { item in
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 120)
+                    .overlay(
+                        HStack {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(item.name)
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text(item.description)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                Text(item.price)
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            Spacer()
+                            Image(systemName: symbolForItem(item))
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 40, height: 40)
+                                .foregroundColor(.dbdRed)
+                        }
+                            .padding()
+                    )
+                    .padding(.horizontal)
+            }
+        }
+    }
+    
+    var collectionsSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("🛍️ COLLECTIONS")
+                .font(.title2)
+                .foregroundColor(.green)
+                .padding(.horizontal)
+            
+            ForEach(0..<5) { i in
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.green.opacity(0.3))
+                    .frame(height: 110)
+                    .overlay(
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("Collection #\(i + 1)")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                Text("A curated set of items including skins, perks, and charms.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Image(systemName: "star.circle.fill")
+                                .resizable()
+                                .frame(width: 40, height: 40)
+                                .foregroundColor(.green)
+                        }
+                            .padding()
+                    )
+                    .padding(.horizontal)
+            }
+        }
+    }
+    
+    var bundlesSection: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("🎁 CRAZY BUNDLES")
+                .font(.title2)
+                .foregroundColor(.yellow)
+                .padding(.horizontal)
+            
+            ForEach(0..<4) { i in
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.orange.opacity(0.2))
+                    .frame(height: 100)
+                    .overlay(
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("Bundle Pack #\(i + 1)")
+                                    .foregroundColor(.white)
+                                    .font(.headline)
+                                Text("Random mix of skins, charms, and premium currency.")
+                                    .foregroundColor(.gray)
+                                    .font(.caption)
+                            }
+                            Spacer()
+                            VStack {
+                                Text("Only")
+                                    .font(.caption2)
+                                    .foregroundColor(.white.opacity(0.8))
+                                Text("\(500 + i * 200) AC")
+                                    .font(.headline)
+                                    .foregroundColor(.dbdRed)
+                            }
+                        }
+                            .padding()
+                    )
+                    .padding(.horizontal)
+            }
+        }
+    }
+    
+    func placeholderSection(title: String) -> some View {
+        VStack {
+            Text("\(title) content goes here")
+                .foregroundColor(.gray)
+                .padding()
+        }
+    }
+    
+    // MARK: - Symbol Resolver
+    
+    func symbolForItem(_ item: StoreItem) -> String {
+        switch item.name {
+            case "The Trapper": return "flame.fill"
+            case "Meg Thomas": return "person.fill"
+            case "Voidborn Huntress": return "moon.stars.fill"
+            case "Urban Escape Bundle": return "figure.walk"
+            case "Cyber Meg": return "cpu.fill"
+            case "Trickster Neon Pack": return "sparkles"
+            case "The Entity's Gift": return "gift.fill"
+            default: return "star"
+        }
     }
 }
 
@@ -309,50 +459,68 @@ struct ShopView: View {
 
 struct PerksView: View {
     @State private var perks: [Perk] = []
+    @State private var searchText: String = ""
+    
+    var filteredPerks: [Perk] {
+        if searchText.isEmpty {
+            return perks
+        } else {
+            return perks.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+    }
     
     var body: some View {
         NavigationView {
             ZStack {
                 Color.dbdBlack.ignoresSafeArea()
                 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        Text("Perks")
-                            .font(.largeTitle)
-                            .foregroundColor(.dbdRed)
-                            .padding(.horizontal)
-                        
-                        if perks.isEmpty {
-                            Text("Loading perks...")
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(.horizontal)
-                        } else {
-                            ForEach(perks) { perk in
-                                HStack(spacing: 15) {
-                                    Image(perk.icon.replacingOccurrences(of: ".png", with: ""))
-                                        .resizable()
-                                        .frame(width: 50, height: 50)
-                                        .cornerRadius(8)
-                                        .shadow(radius: 3)
-                                    Text(perk.name)
-                                        .foregroundColor(.white)
-                                        .font(.headline)
-                                    Spacer()
+                VStack(spacing: 16) {
+                    // Search Bar
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.gray)
+                        TextField("Search Perks", text: $searchText)
+                            .foregroundColor(.white)
+                            .autocapitalization(.none)
+                    }
+                    .padding(10)
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 15) {
+                            if filteredPerks.isEmpty {
+                                Text("No perks found.")
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal)
+                            } else {
+                                ForEach(filteredPerks) { perk in
+                                    HStack(spacing: 15) {
+                                        Image(perk.icon.replacingOccurrences(of: ".png", with: ""))
+                                            .resizable()
+                                            .frame(width: 50, height: 50)
+                                            .cornerRadius(8)
+                                            .shadow(radius: 3)
+                                        Text(perk.name)
+                                            .foregroundColor(.white)
+                                            .font(.headline)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal)
                                 }
-                                .padding(.horizontal)
                             }
                         }
+                        .padding(.vertical)
                     }
-                    .padding(.vertical)
                 }
             }
             .navigationTitle("Perks")
             .onAppear {
                 perks = loadPerks()
             }
-            .navigationBarTitle("Perks", displayMode: .inline)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.dbdBlack, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
         }
         .navigationViewStyle(.stack)
@@ -360,17 +528,131 @@ struct PerksView: View {
     }
 }
 
+struct Item: Identifiable, Decodable {
+    let id = UUID()
+    let name: String
+    let icon: String
+    
+    private enum CodingKeys: String, CodingKey {
+        case name, icon
+    }
+}
+
+func loadItems() -> [Item] {
+    guard let url = Bundle.main.url(forResource: "items", withExtension: "json") else {
+        print("🚫 items.json NOT FOUND")
+        return []
+    }
+    
+    do {
+        let data = try Data(contentsOf: url)
+        let items = try JSONDecoder().decode([Item].self, from: data)
+        print("✅ Loaded \(items.count) items")
+        return items
+    } catch {
+        print("❌ Error loading items: \(error)")
+        return []
+    }
+}
+
+struct ItemsView: View {
+    @State private var items: [Item] = []
+    
+    let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.dbdBlack.ignoresSafeArea()
+                
+                if items.isEmpty {
+                    ProgressView("Loading items...")
+                        .foregroundColor(.white)
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 20) {
+                            ForEach(items) { item in
+                                VStack(spacing: 10) {
+                                    Image(item.icon.replacingOccurrences(of: ".png", with: ""))
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 80, height: 80)
+                                        .cornerRadius(10)
+                                    Text(item.name)
+                                        .font(.caption)
+                                        .foregroundColor(.white)
+                                }
+                                .padding()
+                                .background(Color.black.opacity(0.7))
+                                .cornerRadius(12)
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .navigationTitle("Items")
+            .onAppear {
+                items = loadItems()
+            }
+            .toolbarBackground(Color.dbdBlack, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+        }
+        .navigationViewStyle(.stack)
+        .preferredColorScheme(.dark)
+    }
+}
+
+struct YouTubeView: UIViewRepresentable {
+    let videoID: String
+    
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
+        
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.scrollView.isScrollEnabled = false
+        webView.backgroundColor = .clear
+        webView.isOpaque = false
+        return webView
+    }
+    
+    func updateUIView(_ uiView: WKWebView, context: Context) {
+        let embedHTML = """
+        <html>
+        <body style="margin:0;padding:0;background-color:black;">
+        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/\(videoID)?playsinline=1" frameborder="0" allowfullscreen></iframe>
+        </body>
+        </html>
+        """
+        uiView.loadHTMLString(embedHTML, baseURL: URL(string: "about:blank"))
+    }
+}
+
 // MARK: - LoreView
 
 struct LoreView: View {
-    @State private var loreText: String = """
-    Everyone in the game is trapped there by an eldritch being known as The Entity. The Entity feeds off suffering—particularly the loss of hope. The trials we play are a kind of ritual designed to extract that emotion from the survivors and offer it up to the Entity. It gives them a false sense of hope by allowing them to escape, then feasts on them as that hope is stripped away and they are sacrificed. Whether the survivor lives or dies, they always end up back at the campfire. But for survivors who are sacrificed, they lose a tiny piece of themselves. Eventually, when they lose their last glimmer of hope, they become empty husks. The Entity casts these husks into the Void—especially relevant right now because of the current Void event.
-
-    Killers are beings it has picked up—ones that cause suffering and pain. Some do so willingly, others through manipulation. The Entity can torture them into complying, amplify existing feelings of hatred and violence, or trick them into perceiving survivors as their enemies—whatever it takes to make them participate. They’re just as trapped as the survivors, and for a few, just as tormented.
-
-    That’s the basics of it. If you want to know more, I’d suggest reading up on some of the concepts on the Wiki. The Entity and The Trials are good places to start. They regularly expand the lore through The Archives, which are released every few months with a new Tome. These Tomes include stories about specific characters but also contain entries about events happening outside the trials. There are other beings in the Fog that don’t participate in the trials, and some locations that you never actually see in-game.
-    """
-
+    let sections: [(title: String, content: String)] = [
+        ("The Entity & The Trials", """
+        Everyone in the game is trapped there by an eldritch being known as The Entity. The Entity feeds off suffering—particularly the loss of hope. The trials we play are a kind of ritual designed to extract that emotion from the survivors and offer it up to the Entity.
+        
+        It gives them a false sense of hope by allowing them to escape, then feasts on them as that hope is stripped away and they are sacrificed. Whether the survivor lives or dies, they always end up back at the campfire. But for survivors who are sacrificed, they lose a tiny piece of themselves. Eventually, when they lose their last glimmer of hope, they become empty husks. The Entity casts these husks into the Void—especially relevant right now because of the current Void event.
+        """),
+        ("The Killers", """
+        Killers are beings it has picked up—ones that cause suffering and pain. Some do so willingly, others through manipulation. The Entity can torture them into complying, amplify existing feelings of hatred and violence, or trick them into perceiving survivors as their enemies—whatever it takes to make them participate.
+        
+        They’re just as trapped as the survivors, and for a few, just as tormented.
+        """),
+        ("Learn More", """
+        That’s the basics of it. If you want to know more, read up on some of the concepts on the Wiki. The Entity and The Trials are good places to start.
+        
+        They regularly expand the lore through The Archives, released every few months with a new Tome. These Tomes include stories about specific characters and events happening outside the trials. There are other beings in the Fog that don’t participate in the trials, and some locations that you never actually see in-game.
+        """)
+    ]
     
     var body: some View {
         NavigationView {
@@ -378,29 +660,40 @@ struct LoreView: View {
                 Color.dbdBlack.ignoresSafeArea()
                 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        
-                        if loreText.isEmpty {
-                            Text("Loading lore...")
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(.horizontal)
-                        } else {
-                            Text(loreText)
-                                .foregroundColor(.white)
-                                .font(.body)
-                                .padding(.horizontal)
+                    VStack(alignment: .leading, spacing: 30) {
+                        ForEach(sections, id: \.title) { section in
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(section.title)
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.red)
+                                
+                                Text(section.content)
+                                    .font(.body)
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .multilineTextAlignment(.leading)
+                            }
+                            .padding(.horizontal)
                         }
+                        
+                        YouTubeView(videoID: "_ODIjT5JSbU")
+                            .frame(height: 200)
+                            .cornerRadius(12)
+                            .padding(.horizontal)
                     }
-                    .padding(.vertical)
+                    .padding(.top)
                 }
             }
             .navigationTitle("Lore")
             .toolbarBackground(Color.dbdBlack, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .preferredColorScheme(.dark)
         }
     }
 }
+
+
 // MARK: - Preview
 
 #Preview {
