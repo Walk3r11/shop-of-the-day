@@ -7,6 +7,8 @@
 
 import SwiftUI
 import WebKit
+import Clerk
+import PhotosUI
 
 struct Perk: Identifiable, Decodable {
     let id = UUID()
@@ -141,30 +143,401 @@ struct SpecialItemView: View {
 // MARK: - ContentView
 
 struct ContentView: View {
+    @Environment(Clerk.self) private var clerk
+    
+    @State private var isSignUp = true
+    @State private var email = ""
+    @State private var password = ""
+    @State private var code = ""
+    @State private var isVerifying = false
+    @State private var selectedTab = 0
+    
     var body: some View {
-        TabView {
-            ShopView()
-                .tabItem {
-                    Label("Shop", systemImage: "cart.fill")
-                }
+        ZStack {
+            Color.dbdBlack.ignoresSafeArea()
             
-            PerksView()
-                .tabItem {
-                    Label("Perks", systemImage: "star.fill")
+            if let user = clerk.user {
+                TabView(selection: $selectedTab) {
+                    ShopView()
+                        .tabItem { Label("Shop", systemImage: "cart.fill") }
+                        .tag(0)
+                    
+                    PerksView()
+                        .tabItem { Label("Perks", systemImage: "star.fill") }
+                        .tag(1)
+                    
+                    ItemsView()
+                        .tabItem { Label("Items", systemImage: "bag.fill") }
+                        .tag(2)
+                    
+                    LoreView()
+                        .tabItem { Label("Lore", systemImage: "book.fill") }
+                        .tag(3)
+                    
+                    AccountView(signOutAction: {
+                        Task { try? await clerk.signOut() }
+                    })
+                    .tabItem { Label("Account", systemImage: "person.crop.circle") }
+                    .tag(4)
                 }
-            
-            ItemsView()
-                .tabItem {
-                    Label("Items", systemImage: "bag.fill")
-                }
-            
-            LoreView()
-                .tabItem {
-                    Label("Lore", systemImage: "book.fill")
-                }
+                .accentColor(.dbdRed)
+                .animation(.easeInOut, value: selectedTab)
+                
+            } else {
+                authView
+                    .animation(.easeInOut, value: isVerifying)
+                    .animation(.easeInOut, value: isSignUp)
+            }
         }
-        .accentColor(.dbdRed)
     }
+    
+    // MARK: - Auth View (Sign In / Sign Up)
+    private var authView: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                Text(isSignUp ? "Create Your Account" : "Welcome Back")
+                    .font(.largeTitle)
+                    .fontWeight(.heavy)
+                    .foregroundColor(.white)
+                    .padding(.top, 40)
+                
+                VStack(spacing: 16) {
+                    TextField("Email Address", text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocapitalization(.none)
+                        .padding()
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(12)
+                        .foregroundColor(.white)
+                        .shadow(color: Color.white.opacity(0.1), radius: 5, x: 0, y: 2)
+                    
+                    SecureField("Password", text: $password)
+                        .padding()
+                        .background(Color.white.opacity(0.1))
+                        .cornerRadius(12)
+                        .foregroundColor(.white)
+                        .shadow(color: Color.white.opacity(0.1), radius: 5, x: 0, y: 2)
+                    
+                    if isSignUp && isVerifying {
+                        TextField("Verification Code", text: $code)
+                            .keyboardType(.numberPad)
+                            .padding()
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                            .shadow(color: Color.white.opacity(0.1), radius: 5, x: 0, y: 2)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                }
+                .padding()
+                .background(Color.dbdBlack.opacity(0.85))
+                .cornerRadius(20)
+                .shadow(color: Color.black.opacity(0.7), radius: 10, x: 0, y: 5)
+                .padding(.horizontal)
+                
+                if isSignUp && isVerifying {
+                    Button {
+                        Task { await verify(code: code) }
+                    } label: {
+                        Text("Verify Code")
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.dbdRed)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color.red.opacity(0.7), radius: 8, x: 0, y: 4)
+                    }
+                    .padding(.horizontal)
+                    .transition(.opacity)
+                } else {
+                    Button {
+                        Task {
+                            if isSignUp {
+                                await signUp(email: email, password: password)
+                            } else {
+                                await signIn(email: email, password: password)
+                            }
+                        }
+                    } label: {
+                        Text(isSignUp ? "Sign Up" : "Sign In")
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.dbdRed)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color.red.opacity(0.7), radius: 8, x: 0, y: 4)
+                    }
+                    .padding(.horizontal)
+                    .transition(.opacity)
+                }
+                
+                Button {
+                    withAnimation(.easeInOut) {
+                        isSignUp.toggle()
+                        isVerifying = false
+                        email = ""
+                        password = ""
+                        code = ""
+                    }
+                } label: {
+                    if isSignUp {
+                        Text("Already have an account? ")
+                            .foregroundColor(.gray) +
+                        Text("Sign In")
+                            .foregroundColor(.blue)
+                    } else {
+                        Text("Don't have an account? ")
+                            .foregroundColor(.gray) +
+                        Text("Sign Up")
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding(.bottom, 40)
+                .font(.footnote)
+            }
+        }
+    }
+    
+    // MARK: - Auth Logic
+    
+    func signUp(email: String, password: String) async {
+        do {
+            let signUp = try await SignUp.create(
+                strategy: .standard(emailAddress: email, password: password)
+            )
+            
+            try await signUp.prepareVerification(strategy: .emailCode)
+            
+            DispatchQueue.main.async {
+                withAnimation {
+                    isVerifying = true
+                }
+            }
+        } catch {
+            print("❌ Sign-up error: \(error)")
+        }
+    }
+    
+    func verify(code: String) async {
+        do {
+            guard let signUp = Clerk.shared.client?.signUp else {
+                isVerifying = false
+                return
+            }
+            
+            try await signUp.attemptVerification(strategy: .emailCode(code: code))
+            
+            // After verification success, hide verification UI
+            DispatchQueue.main.async {
+                withAnimation {
+                    isVerifying = false
+                }
+            }
+        } catch {
+            dump(error)
+        }
+    }
+    
+    func signIn(email: String, password: String) async {
+        do {
+            try await SignIn.create(strategy: .identifier(email, password: password))
+        } catch {
+            print("❌ Sign-in error: \(error)")
+        }
+    }
+}
+
+// MARK: - Separate AccountView for cleaner code
+
+struct AccountView: View {
+    @Environment(Clerk.self) private var clerk
+    let signOutAction: () -> Void
+    
+    @State private var notificationsEnabled = true
+    @State private var profileImage: UIImage? = nil
+    @State private var showingImagePicker = false
+    
+    var body: some View {
+        VStack(spacing: 30) {
+            // MARK: User Info with Profile Image Picker
+            VStack(spacing: 8) {
+                ZStack {
+                    if let image = profileImage {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 80, height: 80)
+                            .clipShape(Circle())
+                            .shadow(radius: 5)
+                    } else {
+                        Circle()
+                            .fill(Color.dbdRed)
+                            .frame(width: 80, height: 80)
+                        
+                        Text(userInitials)
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                    }
+                }
+                .onTapGesture {
+                    showingImagePicker = true
+                }
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                        .frame(width: 80, height: 80)
+                )
+                .padding(.bottom, 4)
+                
+                Text(userName)
+                    .foregroundColor(.white)
+                    .font(.headline)
+            }
+            
+            Divider()
+                .background(Color.white.opacity(0.2))
+                .padding(.horizontal)
+            
+            // MARK: Settings Section
+            VStack(spacing: 20) {
+                Toggle(isOn: $notificationsEnabled) {
+                    Text("Enable Notifications")
+                        .foregroundColor(.white)
+                }
+                .toggleStyle(SwitchToggleStyle(tint: .dbdRed))
+            }
+            .padding(.horizontal)
+            
+            Divider()
+                .background(Color.white.opacity(0.2))
+                .padding(.horizontal)
+            
+            // MARK: Sign Out Button
+            Button(action: signOutAction) {
+                Text("Sign Out")
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.dbdRed)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                    .shadow(color: Color.red.opacity(0.6), radius: 8, x: 0, y: 4)
+            }
+            .padding(.horizontal)
+            
+            // MARK: Delete Account Button (Danger)
+            Button {
+                // TODO: Add Delete Account Logic
+            } label: {
+                Text("Delete Account")
+                    .fontWeight(.bold)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.red)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                    .shadow(color: Color.red.opacity(0.7), radius: 8, x: 0, y: 4)
+            }
+            .padding(.horizontal)
+            
+            Spacer()
+        }
+        .padding(.top, 50)
+        .background(Color.dbdBlack)
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(image: $profileImage)
+        }
+        .onAppear {
+            loadProfileImage()
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    private var userName: String {
+        if let username = clerk.user?.username {
+            return username
+        } else if let email = clerk.user?.primaryEmailAddress?.emailAddress {
+            return email.components(separatedBy: "@").first ?? "User"
+        } else {
+            return "User"
+        }
+    }
+    
+    private var userInitials: String {
+        if let first = clerk.user?.firstName, !first.isEmpty {
+            let last = clerk.user?.lastName ?? ""
+            let firstInitial = first.first.map { String($0) } ?? ""
+            let lastInitial = last.first.map { String($0) } ?? ""
+            return (firstInitial + lastInitial).uppercased()
+        }
+        return "U"
+    }
+    
+    // MARK: - Profile Image Storage
+    
+    func loadProfileImage() {
+        if let data = UserDefaults.standard.data(forKey: "profileImage"),
+           let uiImage = UIImage(data: data) {
+            profileImage = uiImage
+        }
+    }
+    
+    func saveProfileImage(_ image: UIImage) {
+        if let data = image.jpegData(compressionQuality: 0.8) {
+            UserDefaults.standard.set(data, forKey: "profileImage")
+        }
+    }
+}
+
+// MARK: - ImagePicker Helper for SwiftUI
+
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        var parent: ImagePicker
+        
+        init(parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            guard let provider = results.first?.itemProvider,
+                  provider.canLoadObject(ofClass: UIImage.self) else {
+                return
+            }
+            provider.loadObject(ofClass: UIImage.self) { image, _ in
+                DispatchQueue.main.async {
+                    self.parent.image = image as? UIImage
+                    if let uiImage = self.parent.image {
+                        // Save the image locally
+                        UserDefaults.standard.set(uiImage.jpegData(compressionQuality: 0.8), forKey: "profileImage")
+                    }
+                }
+            }
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.selectionLimit = 1
+        config.filter = .images
+        
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
 }
 
 struct Skin: Identifiable {
